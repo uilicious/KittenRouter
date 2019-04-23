@@ -6,7 +6,21 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/uilicious/kittenrouter.git"
+  },
+  "dependencies": {},
+  "keywords": [
+    "cloudflare",
+    "serverless",
+    "router"
+  ],
   "author": "Uilicious",
   "license": "MIT",
-  "dependencies": {}
+  "bugs": {
+    "url": "https://github.com/uilicious/kittenrouter/issues"
+  },
+  "homepage": "https://github.com/uilicious/kittenrouter#readme"
+  
 }
