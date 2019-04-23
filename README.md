@@ -1,13 +1,13 @@
 # What is KittenRouter
-Kitten Router is a routing script for [Cloudflare Workers](https://www.cloudflare.com/products/cloudflare-workers/) that attempts to connect to a list of specified servers and redirect the request to whichever server that is currently 'alive' at that point of time. It is extremely useful when you have servers that may go down or are unavailable to process the request and KittenRouter can automatically attempt to redirect the request to the next configured URL for processing.
+KittenRouter is a routing script for [Cloudflare Workers](https://www.cloudflare.com/products/cloudflare-workers/) that attempts to connect to a list of specified servers and redirect the request to whichever server that is currently 'alive' at that point of time. It is extremely useful when you have servers that may go down or are unavailable to process the request and KittenRouter can automatically attempt to redirect the request to the next configured URL for processing.
 
 At the same time, it can be configured to log down information to your ElasticSearch server for analytical purposes. Some of the information logged are the status of the servers, country of the request and etc. For the full details, see the `index.js` file.
 
 # How to use KittenRouter
-Ultimately, Kitten Router is used together with Cloudflare workers. There are two ways in which you can use Kitten Router on your Cloudflare worker script,
+Ultimately, KittenRouter is used together with Cloudflare workers. There are two ways in which you can use KittenRouter on your Cloudflare worker script,
 
  1. Using NPM modules
- 2. Adding Kitten Router manually
+ 2. Adding KittenRouter manually
  
 
 ### 1) Using NPM modules
@@ -15,7 +15,7 @@ If you are comfortable in building projects in NodeJS and wanted to deploy it se
 
 You can use [NPM modules in Cloudflare](https://developers.cloudflare.com/workers/writing-workers/using-npm-modules/), like how we did for Inboxkitten API component, just that you will need webpack to help compact your scripts into a single `.js` file and this single `.js` file will be used in your Cloudflare worker.
 
-Similarly, if you want to use Kitten Router on your Cloudflare script, you can just follow the 7 steps below to achieve it.
+Similarly, if you want to use KittenRouter on your Cloudflare script, you can just follow the 7 steps below to achieve it.
 
 #### Step 1: Installing the necessary packages
 KittenRouter is published in npm repository and you can install it as an NPM module.
@@ -29,7 +29,7 @@ KittenRouter is published in npm repository and you can install it as an NPM mod
 ```
 
 #### Step 2: Writing your code
-After installing Kitten Router, you can simply create a variable and use it immediately. You can store this script as your entrypoint script such as `index.js`.
+After installing KittenRouter, you can simply create a variable and use it immediately. You can store this script as your entrypoint script such as `index.js`.
 
 ```javascript
     const KittenRouter = require("@uilicious/kittenrouter");
@@ -102,7 +102,7 @@ module.exports = {
 `Step 6` should create a `main.js` inside the `dist` folder, you can then copy the entire `main.js` and paste into your Cloudflare Worker's Editor of your domain.
 
 
-### 2) Adding Kitten Router manually
+### 2) Adding KittenRouter manually
 
 #### Step 1: Your own Cloudflare worker script
 Given that you have a Cloudflare worker script such as 
@@ -155,7 +155,7 @@ You can then add the entire `KittenRouter` class, which is basically the `index.
 ```
 
 #### Step 4: Use and deploy
-Declare the Kitten Router object and use it in your request process function. You can then deploy this script to your Cloudflare Worker.
+Declare the KittenRouter object and use it in your request process function. You can then deploy this script to your Cloudflare Worker.
 ```javascript
 
     let config = {
