@@ -109,6 +109,7 @@ const exampleConfig = {
 		// 	// Timeout to abort request on
 			
 		// 	// Fetching sub options (like cache overwrite)
+		//  // Cloudflare fetch config https://developers.cloudflare.com/workers/reference/cloudflare-features/
 		// 	fetchConfig : { cf: { cacheEverything: true } }
 	
 		// 	// @TODO (consider support for nested object based origin decleration?)
@@ -383,6 +384,57 @@ function isKittenRouterException(resObj) {
 	// resObj.headers && resObj.headers.get("KittenRouterException") == "true";
 }
 
+const fetchOptionsKey = [
+	"method",
+	"headers",
+	"body",
+	"mode",
+	"credentials",
+	"cache",
+	"redirect",
+	"referrer",
+	"referrerPolicy",
+	"integrity",
+	"keepalive",
+	"signal"
+];
+
+/**
+ * To extend and include additional configuration options into the original
+ * fetchOptions
+ * 
+ * Currently only extension of headers are supported
+ * 
+ * @param {*} fetchOptions object to be clone
+ * @param {*} extendHeaders that contains the attributes to be replaced
+ * 
+ * @return cloneExtendedFetchOptions, cloning the original fetch options with extended fetch options
+ */
+function cloneAndExtendFetchOptions(fetchOptions, extendHeaders){
+	// Init a new fetch options
+	let ret = {}
+
+	// Clone all keys inside fetch options
+	for(let i=0;i < fetchOptionsKey.length; i++){
+		let key = fetchOptionsKey[i]
+		ret[key] = fetchOptionsKey[key]
+	}
+
+  if(extendHeaders !== null) {
+    let newHeaders = ret.headers || {};
+
+    // For all the headers that needs to be overwritten, overwrite if it exists
+    for (key in extendHeaders){
+      newHeaders[key] = extendHeaders[key]
+    }
+
+    ret.headers = newHeaders
+  }
+
+	// Return back a cloned extended fetch options
+	return ret
+}
+
 //---------------------------------------------------------------------------------------------
 //
 // Routing internal logic
@@ -403,6 +455,21 @@ async function processOriginRoutingStr(originHostStr, inRequest) {
 		cloneUrlWithNewOriginHostString(inRequest.url,originHostStr), //
 		inRequest //
 	);
+}
+
+/**
+ * Makes a request, with a different origin host configured by an object
+ * 
+ * @param {Object} originObj to overwrite host with
+ * @param {Request} inRequest to use 
+ * 
+ * @return {Response} object of the request
+ */
+async function processOriginRoutingObj(originObj, inRequest) {
+	return fetch(
+		cloneUrlWithNewOriginHostString(inRequest.url, originObj.host), //
+		cloneAndExtendFetchOptions(inRequest, originObj.headers)
+	)
 }
 
 // // Process a routing request, and return its response object
@@ -444,6 +511,20 @@ async function processRoutingRequest( configObj, fetchEvent, inRequest ) {
 		if( (typeof route) === "string" ) {
 			// Lets handle string origins
 			resObj = await processOriginRoutingStr( route, inRequest );
+
+			// Lets log 
+			fetchEvent.waitUntil( logRequestWithConfigArray( logArray, inRequest, resObj, "ROUTE_REQUEST", i) );
+
+			// If its a valid response, return it
+			if( isGoodResponseObject(resObj) ) {
+				return resObj;
+			}
+
+			// Lets continue to next route
+			continue;
+		} else {
+			// Lets handle object origins
+			resObj = await processOriginRoutingObj( route, inRequest );
 
 			// Lets log 
 			fetchEvent.waitUntil( logRequestWithConfigArray( logArray, inRequest, resObj, "ROUTE_REQUEST", i) );
@@ -603,6 +684,13 @@ if( this.module == null ) {
 	 ],
 
 		route: [
+			{
+				host:"commonshost.inboxkitten.com",
+				headers : {
+					"X-Forwarded-Host": "inboxkitten.com",
+					"X-Forwarded-Proto": "https"
+				}
+			},
 			"commonshost.inboxkitten.com",
 			"firebase.inboxkitten.com"
 		]
