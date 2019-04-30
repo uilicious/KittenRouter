@@ -86,6 +86,7 @@ const exampleConfig = {
 		"firebase.inboxkitten.com"
 
 		// // Object based route definitions
+		// // THE FOLLOWING BELOW IS NOT SUPPORTED AS OF NOW!!!
 		// //-----------------------------------------------------------------
 		// {
 		// 	// "" host routing will match all
@@ -109,7 +110,7 @@ const exampleConfig = {
 		// 	// Timeout to abort request on
 			
 		// 	// Fetching sub options (like cache overwrite)
-		//  // Cloudflare fetch config https://developers.cloudflare.com/workers/reference/cloudflare-features/
+		// 	// Cloudflare fetch config https://developers.cloudflare.com/workers/reference/cloudflare-features/
 		// 	fetchConfig : { cf: { cacheEverything: true } }
 	
 		// 	// @TODO (consider support for nested object based origin decleration?)
@@ -399,6 +400,22 @@ const fetchOptionsKey = [
 	"signal"
 ];
 
+const overwriteFetchOptionsKey = [
+	"method",
+	// "headers",
+	// "body",
+	"mode",
+	"credentials",
+	"cache",
+	"redirect",
+	"referrer",
+	"referrerPolicy",
+	"integrity",
+	"keepalive",
+	"signal",
+	"cf" // cloudflare custom settings
+]
+
 /**
  * To extend and include additional configuration options into the original
  * fetchOptions
@@ -410,26 +427,55 @@ const fetchOptionsKey = [
  * 
  * @return cloneExtendedFetchOptions, cloning the original fetch options with extended fetch options
  */
-function cloneAndExtendFetchOptions(fetchOptions, extendHeaders){
+function cloneAndExtendFetchOptions(fetchOptions, extendOptions){
 	// Init a new fetch options
 	let ret = {}
-
+	
 	// Clone all keys inside fetch options
-	for(let i=0;i < fetchOptionsKey.length; i++){
+	for(let i=0; i < fetchOptionsKey.length; ++i){
 		let key = fetchOptionsKey[i]
-		ret[key] = fetchOptionsKey[key]
+		try {
+			// Why try catch, and ignore here!!!
+			//
+			// Well it seems like some properties of a request object
+			// cannot be safely checked for "if not null", without
+			// an error. Hence this work around. Sad =()
+			if( fetchOptions[key] != null ) {
+				ret[key] = fetchOptions[key]
+			}
+		} catch(e) {
+			// does nothing : hopefully someone can do a better if != null ?
+		}
 	}
 
-  if(extendHeaders !== null) {
-    let newHeaders = ret.headers || {};
+	// Clone over all the overwriting options (if applicable)
+	for(let i=0; i < overwriteFetchOptionsKey.length; ++i) {
+		let key = overwriteFetchOptionsKey[i]
+		if(extendOptions[key] !== null) {
+			ret[key] = extendOptions[key]
+		}
+	}
 
-    // For all the headers that needs to be overwritten, overwrite if it exists
-    for (key in extendHeaders){
-      newHeaders[key] = extendHeaders[key]
-    }
+	// Overwrite the headers if needed
+	if(extendOptions["overwriteHeaders"] !== null) {
+		ret.headers = Object.assign({}, extendOptions["overwriteHeaders"]);
+	}
 
-    ret.headers = newHeaders
-  }
+	// Lets get the headers to extend
+	let extendHeaders = extendOptions["headers"];
+	if(extendHeaders !== null) {
+		let newHeaders = ret.headers || {};
+		// For all the headers that needs to be overwritten, overwrite if it exists
+		for (key in extendHeaders){
+			newHeaders[key] = extendHeaders[key]
+		}
+		ret.headers = newHeaders
+	}
+
+	// Function overwrites
+	if( extendOptions["optionsFunction"] !== null ) {
+		extendOptions["optionsFunction"](ret, fetchOptions, extendOptions);
+	} 
 
 	// Return back a cloned extended fetch options
 	return ret
@@ -468,7 +514,7 @@ async function processOriginRoutingStr(originHostStr, inRequest) {
 async function processOriginRoutingObj(originObj, inRequest) {
 	return fetch(
 		cloneUrlWithNewOriginHostString(inRequest.url, originObj.host), //
-		cloneAndExtendFetchOptions(inRequest, originObj.headers)
+		cloneAndExtendFetchOptions(inRequest, originObj)
 	)
 }
 
@@ -625,6 +671,13 @@ class KittenRouter {
 		return await processFetchEvent(this.config, fetchEvent);
 	}
 }
+
+//---------------------------------------------------------------------------------------------
+//
+// !!! STOP HERE !!! If your copy and pasting the above, directly to cloudflare
+//                   do not copy the lines below
+//
+//---------------------------------------------------------------------------------------------
 
 // Export out the KittenRouter class, if possible
 // Skipped if used directly in cloudflare worker
