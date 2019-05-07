@@ -23,7 +23,7 @@ KittenRouter is published in npm repository and you can install it as an NPM mod
     # Change to your project directory
     $ cd <to your project>
     # Install kittenrouter
-    $ npm install --save @uilicious/kittenrouter
+    $ npm install --save kittenrouter
     # Install webpack, we will need it to compact all your files into a single js file
     $ npm install --save webpack
 ```
