@@ -32,7 +32,7 @@ KittenRouter is published in npm repository and you can install it as an NPM mod
 After installing KittenRouter, you can simply create a variable and use it immediately. You can store this script as your entrypoint script such as `index.js`.
 
 ```javascript
-    const KittenRouter = require("@uilicious/kittenrouter");
+    const KittenRouter = require("kittenrouter");
     let config = {
         // some configuration that you have for your KittenRouter
     };
