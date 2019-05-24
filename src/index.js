@@ -477,7 +477,7 @@ function cloneAndExtendFetchOptions(fetchOptions, extendOptions){
 	}
 
 	// Function overwrites
-	if( extendOptions["optionsFunction"] !== null ) {
+	if( extendOptions["optionsFunction"] != null ) {
 		extendOptions["optionsFunction"](ret, fetchOptions, extendOptions);
 	} 
 
@@ -541,7 +541,7 @@ async function matchPrerouteCache(inRequest) {
  */
 async function fillupPrerouteCache(inRequest, outResponse, enable = true) {
 	if(enable) {
-		preRouteCache.put(inRequest, outResponse);
+		preRouteCache.put(inRequest, outResponse.clone());
 	}
 	return outResponse;
 }
@@ -786,21 +786,21 @@ module.exports = KittenRouter;
 // If module does not exist, this is probably a cloudflare debugging session
 // Lets do this =)
 //
-if( this.module == null ) {
-	// KittenRouter setup
-	const router = new KittenRouter({
 
-	 // logging endpoint to use
-	 log : [
+// KittenRouter setup
+const router = new KittenRouter({
+
+	// logging endpoint to use
+	log : [
 		{
-		  // Currently only elasticsearch is supported, scoped here for future alternatives
-		  // One possible option is google analytics endpoint
-		  type : "elasticsearch",
+			// Currently only elasticsearch is supported, scoped here for future alternatives
+			// One possible option is google analytics endpoint
+			type : "elasticsearch",
 
 			//
 			// Elasticsearch index endpoint 
 			//
-		  url : "https://inboxkitten.logging.com/",
+			url : "https://inboxkitten.logging.com/",
 
 			//
 			// Authorization header (if needed)
@@ -826,24 +826,24 @@ if( this.module == null ) {
 			// typically this would be seesion keys.
 			// cookies : ["__cfduid", "_ga", "_gid", "account_id"]
 		}
-	 ],
+	],
 
-		route: [
-			{
-				host:"commonshost.inboxkitten.com",
-				headers : {
-					"X-Forwarded-Host": "inboxkitten.com",
-					"X-Forwarded-Proto": "https"
-				}
-			},
-			"commonshost.inboxkitten.com",
-			"firebase.inboxkitten.com"
-		]
-	});
+	route: [
+		{
+			host:"commonshost.inboxkitten.com",
+			headers : {
+				"X-Forwarded-Host": "inboxkitten.com",
+				"X-Forwarded-Proto": "https"
+			}
+		},
+		"commonshost.inboxkitten.com",
+		"firebase.inboxkitten.com"
+	]
+});
 
-	// Cloudflare fetch result handling
-	addEventListener('fetch', event => {
-		event.respondWith(router.handleFetchEvent(event))
-	});
-}
+// Cloudflare fetch result handling
+addEventListener('fetch', event => {
+	event.respondWith(router.handleFetchEvent(event))
+});
+
 */
