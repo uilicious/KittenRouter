@@ -845,5 +845,4 @@ const router = new KittenRouter({
 addEventListener('fetch', event => {
 	event.respondWith(router.handleFetchEvent(event))
 });
-
 */
