@@ -128,6 +128,9 @@ const exampleConfig = {
 	// Support default timeout to process a request in milliseconds
 	defaultRouteTimeout : 2000, // 2,000 ms = 2 s
 
+	// Support for cloudflare caching 
+	disableCloudflarePreRouteCache : false,
+
 	// @TODO crazier caching options to consider
 	// - KeyValue caching (probably pointless, cost wise)
 	// - In memory caching (with a limit of 500 objects + 10 kb per object?)
@@ -511,6 +514,40 @@ function fetchWithTimeout(resource, init, timeout = 2000) {
 
 //---------------------------------------------------------------------------------------------
 //
+// Cloudflare Caching logic
+//
+//---------------------------------------------------------------------------------------------
+
+// Cloudflare constant prerouting cache
+const preRouteCache = caches.default;
+
+/**
+ * Returned cached response (if valid)
+ * @param {Request} inRequest to use as key
+ */
+async function matchPrerouteCache(inRequest) {
+	return preRouteCache.match(inRequest);
+}
+
+/**
+ * Fill up the cloudflare cache, with a response object.
+ * This will automaticaly handle the response expirary rules
+ * 
+ * @param {Request} inRequest to use as key
+ * @param {Response} outResponse to cach
+ * @param {Boolean} enable (default true), configure to false to skip route cache fill
+ * 
+ * @return the outResponse (to pass upwards)
+ */
+async function fillupPrerouteCache(inRequest, outResponse, enable = true) {
+	if(enable) {
+		preRouteCache.put(inRequest, outResponse);
+	}
+	return outResponse;
+}
+
+//---------------------------------------------------------------------------------------------
+//
 // Routing internal logic
 //
 //---------------------------------------------------------------------------------------------
@@ -637,6 +674,22 @@ async function processFetchEvent( configObj, fetchEvent ) {
 	let inReq = fetchEvent.request;
 	let resObj = null;
 
+	// Lets get pre route caching config
+	let disableCloudflarePreRouteCache = configObj.disableCloudflarePreRouteCache || false;
+	let enableCloudflarePreRouteCache = !disableCloudflarePreRouteCache;
+
+	// Lets check the local cache
+	//----------------------------------------------------------------------
+
+	if( enableCloudflarePreRouteCache ) {
+		resObj = await matchPrerouteCache(inReq);
+		if( resObj != null ) {
+			// Cache found, returns
+			return resObj;
+		}
+		// Cache matching fail, go fetch it
+	}
+
 	// Lets process the routing request
 	//----------------------------------------------------------------------
 
@@ -647,11 +700,13 @@ async function processFetchEvent( configObj, fetchEvent ) {
 	// We do an oversimilified assumption that its valid 
 	// if the response code is 200~399
 	if( isGoodResponseObject(resObj) ) {
-		return resObj;
+		// Cache (if enabled) preroute, and return
+		return fillupPrerouteCache(inReq, resObj, enableCloudflarePreRouteCache);
 	}
 
 	// Throw and show results from setupResponseError (for direct feedback loop)
 	if( isKittenRouterException(resObj) ) {
+		// We do not cache exceptions
 		return resObj;
 	}
 
@@ -663,17 +718,21 @@ async function processFetchEvent( configObj, fetchEvent ) {
 	if( configObj.disableOriginFallback ) {
 		// No response object returned by routes : assume no valid routes
 		if( resObj == null ) {
+			// We do not cache exceptions
 			return setupResponseError("NO_VALID_ROUTE", "No valid route found in config");
 		}
 
 		// Else return the last failed route response
+		// We do not cache exceptions
 		return resObj;
 	}
 
 	// Lets fetch the cloudflare origin request, log it, and return its result instead
 	resObj = await fetch(inReq);
 	fetchEvent.waitUntil( logRequestWithConfigArray( configObj.log, inReq, resObj, "ORIGIN_FALLBACK", -1) );
-	return resObj;
+
+	// Cache (if enabled) preroute, and return
+	return fillupPrerouteCache(inReq, resObj, enableCloudflarePreRouteCache);
 }
 
 //---------------------------------------------------------------------------------------------
