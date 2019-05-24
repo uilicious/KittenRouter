@@ -93,7 +93,7 @@ const exampleConfig = {
 		// 	reqHost : [""],
 		// 	// Routing prefix to check for, note that "" will match all
 		// 	reqPrefix : [""],
-		
+		//
 		// 	// Origin servers to route to
 		// 	host : "host-endpoint-c",
 		// 	port : 443,
@@ -108,7 +108,8 @@ const exampleConfig = {
 		// 		"Europe"
 		// 	],
 		// 	// Timeout to abort request on
-			
+		// 	timeout : 2000,
+		//
 		// 	// Fetching sub options (like cache overwrite)
 		// 	// Cloudflare fetch config https://developers.cloudflare.com/workers/reference/cloudflare-features/
 		// 	fetchConfig : { cf: { cacheEverything: true } }
@@ -124,8 +125,8 @@ const exampleConfig = {
 	// when all routes fails
 	disableOriginFallback : false,
 
-	// @TODO support default timeout to process a request in milliseconds
-	// defaultOriginTimeout : 10000, // 10,000 ms = 10 s
+	// Support default timeout to process a request in milliseconds
+	defaultRouteTimeout : 2000, // 2,000 ms = 2 s
 
 	// @TODO crazier caching options to consider
 	// - KeyValue caching (probably pointless, cost wise)
@@ -481,6 +482,33 @@ function cloneAndExtendFetchOptions(fetchOptions, extendOptions){
 	return ret
 }
 
+
+
+/**
+ * Calling of fetch, with a timeout option which returns an error instead
+ * See: https://developer.mozilla.org/en-US/docs/Web/API/WindowOrWorkerGlobalScope/fetch
+ * 
+ * @param {*} resource 
+ * @param {*} init 
+ * @param {Integer} timeout in approximate milliseconds to return a failure
+ * 
+ * @return {Response} object of the request
+ */
+function fetchWithTimeout(resource, init, timeout = 2000) {
+	// Calling the fetch request
+	let fetchPromise = fetch(resource, init);
+
+	// Timeout promise
+	let timeoutPromise = new Promise(function(good,bad) {
+		setTimeout(function() {
+			good( setupResponseError("ROUTE_TIMEOUT", "Route failed due to timeout : "+timeout+" ms") );
+		}, timeout);
+	});
+	
+	// Return a racing promise
+	return Promise.race([ fetchPromise, timeoutPromise ]);
+}
+
 //---------------------------------------------------------------------------------------------
 //
 // Routing internal logic
@@ -492,14 +520,16 @@ function cloneAndExtendFetchOptions(fetchOptions, extendOptions){
  * 
  * @param {String} originHostStr to overwrite host with
  * @param {Request} inRequest to use 
+ * @param {Integer} defaultRouteTimeout in approximate milliseconds to return a failure
  * 
  * @return {Response} object of the request
  */
 // Process a routing request, and return its response object
-async function processOriginRoutingStr(originHostStr, inRequest) {
-	return fetch( //
+async function processOriginRoutingStr(originHostStr, inRequest, defaultRouteTimeout = 2000) {
+	return fetchWithTimeout( //
 		cloneUrlWithNewOriginHostString(inRequest.url,originHostStr), //
-		inRequest //
+		inRequest, //
+		defaultRouteTimeout
 	);
 }
 
@@ -508,13 +538,15 @@ async function processOriginRoutingStr(originHostStr, inRequest) {
  * 
  * @param {Object} originObj to overwrite host with
  * @param {Request} inRequest to use 
+ * @param {Integer} defaultRouteTimeout in approximate milliseconds to return a failure
  * 
  * @return {Response} object of the request
  */
-async function processOriginRoutingObj(originObj, inRequest) {
-	return fetch(
+async function processOriginRoutingObj(originObj, inRequest, defaultRouteTimeout = 2000) {
+	return fetchWithTimeout(
 		cloneUrlWithNewOriginHostString(inRequest.url, originObj.host), //
-		cloneAndExtendFetchOptions(inRequest, originObj)
+		cloneAndExtendFetchOptions(inRequest, originObj), //
+		originObj.timeout || defaultRouteTimeout
 	)
 }
 
@@ -540,6 +572,7 @@ async function processRoutingRequest( configObj, fetchEvent, inRequest ) {
 	// Lets get the route, and log array first
 	let routeArray = configObj.route;
 	let logArray = configObj.log;
+	let defaultRouteTimeout = configObj.defaultRouteTimeout || 2000;
 
 	// Return null, on empty routeArray
 	if( routeArray == null || routeArray.length <= 0 ) {
@@ -556,7 +589,7 @@ async function processRoutingRequest( configObj, fetchEvent, inRequest ) {
 		// Route string processing
 		if( (typeof route) === "string" ) {
 			// Lets handle string origins
-			resObj = await processOriginRoutingStr( route, inRequest );
+			resObj = await processOriginRoutingStr( route, inRequest, defaultRouteTimeout );
 
 			// Lets log 
 			fetchEvent.waitUntil( logRequestWithConfigArray( logArray, inRequest, resObj, "ROUTE_REQUEST", i) );
@@ -570,7 +603,7 @@ async function processRoutingRequest( configObj, fetchEvent, inRequest ) {
 			continue;
 		} else {
 			// Lets handle object origins
-			resObj = await processOriginRoutingObj( route, inRequest );
+			resObj = await processOriginRoutingObj( route, inRequest, defaultRouteTimeout );
 
 			// Lets log 
 			fetchEvent.waitUntil( logRequestWithConfigArray( logArray, inRequest, resObj, "ROUTE_REQUEST", i) );
