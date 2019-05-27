@@ -146,7 +146,7 @@ const exampleConfig = {
 
 // Generate a random uuid to identify the instance
 let workerID = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
-let reqCount = 0
+let reqCount = 0;
 
 // Simple regex to validate for an ipv4
 const ipv4_simpleRegex = /^[0-9a-z]{1,3}\.[0-9a-z]{1,3}\.[0-9a-z]{1,3}\.[0-9a-z]{1,3}$/i;
@@ -216,7 +216,7 @@ function getIPV6(request, logTrueIP = false) {
 }
 
 // Log request with a single config map
-async function logRequestWithConfigMap(logConfig, request, response, routeType, routeCount) {
+async function logRequestWithConfigMap(logConfig, request, response, routeType, routeCount, currentRequestCount) {
 	// Does nothing if logconfig is null
 	if( logConfig == null || logConfig.url == null || logConfig.url.length <= 0 ) {
 		return null;
@@ -271,7 +271,7 @@ async function logRequestWithConfigMap(logConfig, request, response, routeType, 
 
 		// Additional information related to this worker
 		'worker.id':            workerID, // currently the workerID is tagged to the cf-ray of cloudflare request.headers['cf-ray']
-		'worker.reqCount':      reqCount, // reqCount refers to the number of time this instance was called.
+		'worker.reqCount':      currentRequestCount, // currentRequestCount refers to the number of times this instance was called.
 
 		'config.logTrueIP': logTrueIP
 	};
@@ -311,7 +311,7 @@ async function logRequestWithConfigMap(logConfig, request, response, routeType, 
 }
 
 // Log request with a config array
-async function logRequestWithConfigArray(configArr, request, response, routeType, routeCount) {
+async function logRequestWithConfigArray(configArr, request, response, routeType, routeCount, currentRequestCount) {
 	// Does nothing if configArr is null
 	if( configArr == null || configArr.length <= 0 ) {
 		return null;
@@ -320,7 +320,7 @@ async function logRequestWithConfigArray(configArr, request, response, routeType
 	// Lets iterate the config
 	let promiseArray = [];
 	for(let i=0; i<configArr.length; ++i) {
-		promiseArray[i] = logRequestWithConfigMap(configArr[i], request, response, routeType, routeCount);
+		promiseArray[i] = logRequestWithConfigMap(configArr[i], request, response, routeType, routeCount, currentRequestCount);
 	}
 
 	// Return with a single promise object
@@ -610,10 +610,11 @@ async function processOriginRoutingObj(originObj, inRequest, defaultRouteTimeout
  * @param {Object} configObj conataining both the .route, and .log array config
  * @param {*} fetchEvent provided from cloudflare, attaches logging waitUntil
  * @param {Request} inRequest to process 
+ * @param {int} currentRequestCount that keep tracks of how many requests have been made to this instance
  * 
  * @return {Response} if a valid route with result is found, else return final route request failure (if any), else return null
  */
-async function processRoutingRequest( configObj, fetchEvent, inRequest ) {
+async function processRoutingRequest( configObj, fetchEvent, inRequest, currentRequestCount ) {
 	// Lets get the route, and log array first
 	let routeArray = configObj.route;
 	let logArray = configObj.log;
@@ -637,7 +638,7 @@ async function processRoutingRequest( configObj, fetchEvent, inRequest ) {
 			resObj = await processOriginRoutingStr( route, inRequest, defaultRouteTimeout );
 
 			// Lets log 
-			fetchEvent.waitUntil( logRequestWithConfigArray( logArray, inRequest, resObj, "ROUTE_REQUEST", i) );
+			fetchEvent.waitUntil( logRequestWithConfigArray( logArray, inRequest, resObj, "ROUTE_REQUEST", i, currentRequestCount ) );
 
 			// If its a valid response, return it
 			if( isGoodResponseObject(resObj) ) {
@@ -651,7 +652,7 @@ async function processRoutingRequest( configObj, fetchEvent, inRequest ) {
 			resObj = await processOriginRoutingObj( route, inRequest, defaultRouteTimeout );
 
 			// Lets log 
-			fetchEvent.waitUntil( logRequestWithConfigArray( logArray, inRequest, resObj, "ROUTE_REQUEST", i) );
+			fetchEvent.waitUntil( logRequestWithConfigArray( logArray, inRequest, resObj, "ROUTE_REQUEST", i, currentRequestCount ) );
 
 			// If its a valid response, return it
 			if( isGoodResponseObject(resObj) ) {
@@ -686,7 +687,8 @@ async function processFetchEvent( configObj, fetchEvent ) {
 	let disableCloudflarePreRouteCache = configObj.disableCloudflarePreRouteCache || false;
 	let enableCloudflarePreRouteCache = !disableCloudflarePreRouteCache;
 
-	reqCount++;
+	// Lets safely get the request count with an increment
+	let currentRequestCount = ++reqCount;
 
 	// Lets check the local cache
 	//----------------------------------------------------------------------
@@ -697,7 +699,7 @@ async function processFetchEvent( configObj, fetchEvent ) {
 			// Cache found, log down the details before returning the response
 			let routeArray = configObj.route;
 			let logArray = configObj.log;
-			fetchEvent.waitUntil( logRequestWithConfigArray( logArray, inReq, resObj, "PREROUTE_MATCHED_REQUEST", -1) );
+			fetchEvent.waitUntil( logRequestWithConfigArray( logArray, inReq, resObj, "PREROUTE_MATCHED_REQUEST", -1, currentRequestCount ) );
 			// Cache found, returns
 			return resObj;
 		}
@@ -708,7 +710,7 @@ async function processFetchEvent( configObj, fetchEvent ) {
 	//----------------------------------------------------------------------
 
 	// Lets try to get a response from a route
-	resObj = await processRoutingRequest( configObj, fetchEvent, inReq );
+	resObj = await processRoutingRequest( configObj, fetchEvent, inReq, currentRequestCount );
 
 	// Lets return the response object if its valid
 	// We do an oversimilified assumption that its valid 
@@ -743,7 +745,7 @@ async function processFetchEvent( configObj, fetchEvent ) {
 
 	// Lets fetch the cloudflare origin request, log it, and return its result instead
 	resObj = await fetch(inReq);
-	fetchEvent.waitUntil( logRequestWithConfigArray( configObj.log, inReq, resObj, "ORIGIN_FALLBACK", -1) );
+	fetchEvent.waitUntil( logRequestWithConfigArray( configObj.log, inReq, resObj, "ORIGIN_FALLBACK", -1, currentRequestCount ) );
 
 	// Cache (if enabled) preroute, and return
 	return fillupPrerouteCache(inReq, resObj, enableCloudflarePreRouteCache);
