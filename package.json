@@ -1,6 +1,6 @@
 {
   "name": "kittenrouter",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Serves as a probe to a list of configured URLs to determine if the URL is alive and retry until a 'living' URL is found or list is exhausted and fallback to original request URL",
   "main": "src/index.js",
   "scripts": {
