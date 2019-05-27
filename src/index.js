@@ -144,6 +144,10 @@ const exampleConfig = {
 //
 //---------------------------------------------------------------------------------------------
 
+// Generate a random uuid to identify the instance
+let workerID = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+let reqCount = 0
+
 // Simple regex to validate for an ipv4
 const ipv4_simpleRegex = /^[0-9a-z]{1,3}\.[0-9a-z]{1,3}\.[0-9a-z]{1,3}\.[0-9a-z]{1,3}$/i;
 
@@ -264,6 +268,10 @@ async function logRequestWithConfigMap(logConfig, request, response, routeType, 
 		'res.cache-control':    response.headers.get('cache-control') || '',
 		'res.cf.cache-status':  response.headers.get('cf-cache-status') || '',
 		'res.cf.ray':           response.headers.get('cf-ray') || '',
+
+		// Additional information related to this worker
+		'worker.id':            workerID, // currently the workerID is tagged to the cf-ray of cloudflare request.headers['cf-ray']
+		'worker.reqCount':      reqCount, // reqCount refers to the number of time this instance was called.
 
 		'config.logTrueIP': logTrueIP
 	};
@@ -678,12 +686,18 @@ async function processFetchEvent( configObj, fetchEvent ) {
 	let disableCloudflarePreRouteCache = configObj.disableCloudflarePreRouteCache || false;
 	let enableCloudflarePreRouteCache = !disableCloudflarePreRouteCache;
 
+	reqCount++;
+
 	// Lets check the local cache
 	//----------------------------------------------------------------------
 
 	if( enableCloudflarePreRouteCache ) {
 		resObj = await matchPrerouteCache(inReq);
 		if( resObj != null ) {
+			// Cache found, log down the details before returning the response
+			let routeArray = configObj.route;
+			let logArray = configObj.log;
+			fetchEvent.waitUntil( logRequestWithConfigArray( logArray, inReq, resObj, "PREROUTE_MATCHED_REQUEST", -1) );
 			// Cache found, returns
 			return resObj;
 		}
